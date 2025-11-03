@@ -1,0 +1,25 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+
+langchain
+langchain-community
+langchain-ollama
+
+sqlalchemy
+psycopg2-binary
+pgvector
+
+pandas
+docling
+typer
+pytesseract
+
+# OCR and image processing dependencies
+onnxruntime
+rapidocr
+easyocr
+torch
+Pillow
+numpy

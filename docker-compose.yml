@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  db:
+    image: ankane/pgvector:latest
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sqope}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sqope}
+      POSTGRES_DB: ${POSTGRES_DB:-sqope}
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sqope} -d ${POSTGRES_DB:-sqope}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ollama:
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "curl -sS http://localhost:11434/api/tags | head -c 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    env_file: [ .env ]
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    ports: ["8000:8000"]
+
+  indexer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.indexer
+    env_file: [.env]
+    depends_on:
+      db:
+        condition: service_healthy
+    working_dir: /indexer
+    entrypoint: ["python", "-m", "indexer"]
+    volumes:
+      - ./data:/indexer/data  # Mount the data directory
+
+volumes:
+  ollama:

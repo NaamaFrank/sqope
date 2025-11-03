@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+WORKDIR /indexer
+COPY docker/requirements.txt .
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+	libgl1 \
+	libglib2.0-0 \
+	poppler-utils \
+	tesseract-ocr \
+	libleptonica-dev \
+	libtesseract-dev \
+	tesseract-ocr-eng \
+	build-essential \
+	python3-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir -r requirements.txt
+COPY indexer ./indexer
+COPY app ./app
+ENV PYTHONPATH=/indexer:/app
+ENTRYPOINT ["python", "-m", "indexer"]

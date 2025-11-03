@@ -1,0 +1,88 @@
+# Operating System
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+
+# Node.js
+node_modules/
+dist/
+build/
+lib/
+.pnp/
+.pnp.js
+.next/
+out/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+venv*/
+ENV/
+pip-wheel-metadata/
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+.tox/
+dist/
+build/
+*.egg-info/
+*.egg
+wheels/
+
+# Databases
+*.sqlite3
+*.db
+*.db-journal
+
+# IDEs / editors
+*.vscode/
+*.idea/
+*.iml
+*.sublime-workspace
+*.sublime-project
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Containers
+docker-compose.override.yml
+.docker/
+
+# Build / compiled artifacts
+*.class
+*.o
+*.so
+*.exe
+*.dll
+
+# Coverage reports
+coverage/
+coverage.xml
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Misc
+*.tmp
+*.swp
+*.lock
