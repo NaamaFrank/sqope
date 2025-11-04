@@ -2,31 +2,16 @@
 Run this from PowerShell anywhere; the script will resolve the repository root based on the script location.
 Usage examples:
     # mount a single PDF and index it
-    .\scripts\run-indexer.ps1 -FilePath "C:\full\path\to\your.pdf" -DocId your_doc_id
-
-    # mount the file's parent folder (so many files in same folder are available)
-    .\scripts\run-indexer.ps1 -FilePath "C:\full\path\to\your.pdf" -DocId your_doc_id -MountParent
-
-    # mount an arbitrary folder instead of a single file
-    .\scripts\run-indexer.ps1 -FilePath "C:\full\path\to\your.pdf" -DocId your_doc_id -MountFolder "C:\some\folder"
-
-Options:
-  -Build: build the Docker image first using docker/Dockerfile.indexer if the image doesn't exist
-  -ImageName: name of the docker image (default: sqope-indexer)
-  -Network: docker network to use (default: sqope_default)
-  -EnvFile: path to env file to pass into container (default: .env)
+    .\scripts\run-indexer.ps1 -FilePath "C:\full\path\to\your.pdf" 
 
 This script resolves the host path, mounts it into the container under /data, and calls
-`python -m indexer file --path /data/<filename> --doc-id <docid>` inside the container.
+`python -m indexer file --path /data/<filename>` inside the container.
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)]
     [string]$FilePath,
-
-    [Parameter(Mandatory=$true)]
-    [string]$DocId,
 
     [string]$ImageName = "sqope-indexer",
     [string]$Network = "sqope_default",
@@ -122,7 +107,7 @@ try {
 
 $dockerArgs = @('run','--rm')
 # Create a friendly ephemeral container name
-$containerName = "sqope-indexer-$DocId"
+$containerName = "sqope-indexer"
 $dockerArgs += @('--name',$containerName)
 if (Test-Path $EnvFile) {
     $dockerArgs += @('--env-file',$EnvFile)
@@ -135,23 +120,9 @@ if ($networkExists) { $dockerArgs += @('--network',$Network) } else { Write-Info
 foreach ($v in $volumeArgs) { $dockerArgs += @('-v',$v) }
 
 # Final invocation: image then subcommand and args
-$useSubcommand = $false
-try {
-    # Try running `python -m indexer file --help` inside the image. If it exits 0, the subcommand exists.
-    & docker run --rm --entrypoint python $ImageName -m indexer file --help > $null 2>&1
-    if ($LASTEXITCODE -eq 0) { $useSubcommand = $true }
-} catch {
-    $useSubcommand = $false
-}
-
 $dockerArgs += $ImageName
-if ($useSubcommand) {
-    $dockerArgs += 'file'
-}
 $dockerArgs += '--path'
 $dockerArgs += $containerFilePath
-$dockerArgs += '--doc-id'
-$dockerArgs += $DocId
 
 Write-Host "Running: docker $($dockerArgs -join ' ')" -ForegroundColor Green
 

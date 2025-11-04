@@ -106,13 +106,15 @@ def table_to_structured(tbl) -> Tuple[List[str], List[Dict[str, Any]]]:
                 pass
     return [], []
 
-def persist_docling_tables(doc, *, file_key: str, source_path: str) -> int:
+def persist_docling_tables(doc, *, file_key: str, source_path: str, vectorstore=None) -> int:
     """Extract all tables from Docling doc and upsert into Postgres JSONB.
+    Also creates schema-level embeddings in vector store for analytical queries.
     
     Args:
         doc: Docling document object with tables attribute
         file_key: Stable identifier from file content hash
         source_path: Path to source file
+        vectorstore: Optional vectorstore instance for schema embeddings
         
     Returns:
         Number of tables successfully written
@@ -120,6 +122,11 @@ def persist_docling_tables(doc, *, file_key: str, source_path: str) -> int:
     tables = getattr(doc, "tables", None) or []
     if not tables:
         return 0
+        
+    # Lists to collect schema embeddings if vectorstore provided
+    schema_texts = []
+    schema_metadatas = []
+    schema_ids = []
         
     engine = get_engine()
     written = 0
@@ -132,6 +139,23 @@ def persist_docling_tables(doc, *, file_key: str, source_path: str) -> int:
                 
             norm_headers = [normalize_header(h) for h in headers]
             norm_rows = [normalize_row(r) for r in rows]
+            
+            # Generate schema description for embedding
+            if vectorstore:
+                # Create a natural language description of the table schema
+                schema_text = f"file={source_path}; table_index={t_idx}; columns: {', '.join(headers)}; rows={len(norm_rows)}"
+                schema_metadata = {
+                    "type": "table_schema",
+                    "file_key": file_key,
+                    "table_index": t_idx,
+                    "headers": headers,
+                    "n_rows": len(norm_rows)
+                }
+                schema_id = f"{file_key}||table||{t_idx}||schema"
+                
+                schema_texts.append(schema_text)
+                schema_metadatas.append(schema_metadata)
+                schema_ids.append(schema_id)
             
             # catalog
             conn.execute(text("""
@@ -154,5 +178,20 @@ def persist_docling_tables(doc, *, file_key: str, source_path: str) -> int:
                     SET data = EXCLUDED.data
                 """), params)
             written += 1
+            
+    # Store schema embeddings if vectorstore provided
+    if vectorstore and schema_texts:
+        try:
+            vectorstore.add_texts(
+                texts=schema_texts,
+                metadatas=schema_metadatas,
+                ids=schema_ids
+            )
+            print(f"[tables] Created {len(schema_texts)} table schema embeddings")
+        except Exception as e:
+            if "UniqueViolation" in str(e) or "unique constraint" in str(e).lower():
+                print("[tables] Skipping duplicate schema embeddings")
+            else:
+                raise
             
     return written

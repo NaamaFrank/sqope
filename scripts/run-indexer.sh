@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # Simple wrapper to run the indexer container from macOS/Linux
 # Usage:
-#   ./scripts/run-indexer.sh -f /full/path/to/file.pdf -i docid
-#   ./scripts/run-indexer.sh -f /full/path/to/file.pdf -i docid --mount-parent
-#   ./scripts/run-indexer.sh -f /full/path/to/file.pdf -i docid --mount-folder /some/folder
+#   ./scripts/run-indexer.sh -f /full/path/to/file.pdf
 
 set -euo pipefail
 script_dir=$(dirname "$(readlink -f "$0")")
@@ -20,8 +18,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -f|--file)
       FILEPATH="$2"; shift 2;;
-    -i|--id)
-      DOCID="$2"; shift 2;;
     --mount-parent)
       MOUNT_PARENT=true; shift;;
     --mount-folder)
@@ -41,8 +37,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "${FILEPATH-}" || -z "${DOCID-}" ]]; then
-  echo "Usage: $0 -f /full/path/to/file.pdf -i docid [--mount-parent|--mount-folder /path] [--build]"
+if [[ -z "${FILEPATH-}" ]]; then
+  echo "Usage: $0 -f /full/path/to/file.pdf [--mount-parent|--mount-folder /path] [--build]"
   exit 2
 fi
 
@@ -83,24 +79,12 @@ if [[ "$BUILD" = true ]]; then
 fi
 
 # Construct docker run command
-cmd=(docker run --rm --name "${IMAGE_NAME}-${DOCID}")
+cmd=(docker run --rm --name "$IMAGE_NAME")
 if [[ -f "$ENV_FILE" ]]; then cmd+=(--env-file "$ENV_FILE"); else echo "Env file '$ENV_FILE' not found; continuing without --env-file"; fi
 # attach network only if exists
 if docker network inspect "$NETWORK" > /dev/null 2>&1; then cmd+=(--network "$NETWORK"); else echo "Network '$NETWORK' not found; using default bridge"; fi
 for v in "${volume_args[@]}"; do cmd+=(-v "$v"); done
-cmd+=("$IMAGE_NAME" file --path "$container_file_path" --doc-id "$DOCID")
-
-# Detect whether the image expects a 'file' subcommand. Try running `python -m indexer file --help` inside the image.
-use_subcommand=false
-if docker run --rm --entrypoint python "$IMAGE_NAME" -m indexer file --help > /dev/null 2>&1; then
-  use_subcommand=true
-fi
-
-if [ "$use_subcommand" = true ]; then
-  cmd+=("$IMAGE_NAME" file --path "$container_file_path" --doc-id "$DOCID")
-else
-  cmd+=("$IMAGE_NAME" --path "$container_file_path" --doc-id "$DOCID")
-fi
+cmd+=("$IMAGE_NAME" --path "$container_file_path")
 
 echo "Running: ${cmd[*]}"
 "${cmd[@]}"

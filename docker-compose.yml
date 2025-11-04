@@ -8,6 +8,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sqope}
       POSTGRES_DB: ${POSTGRES_DB:-sqope}
     ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sqope} -d ${POSTGRES_DB:-sqope}"]
       interval: 5s
@@ -36,6 +38,8 @@ services:
       ollama:
         condition: service_healthy
     ports: ["8000:8000"]
+    volumes:
+      - ./app:/app/app
 
   indexer:
     build:
@@ -52,3 +56,4 @@ services:
 
 volumes:
   ollama:
+  pgdata:  # Persistent volume for PostgreSQL data

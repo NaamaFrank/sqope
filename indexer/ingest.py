@@ -22,13 +22,6 @@ def _normalize_text(s: str) -> str:
 def _hash_text(s: str) -> str:
     return hashlib.sha256(_normalize_text(s).encode("utf-8")).hexdigest()
 
-def _normalize_path(p: str) -> str:
-    try:
-        return Path(p).resolve().as_posix().lower()
-    except Exception:
-        return str(p)
-
-
 def _sanitize_for_json(obj):
     """Recursively convert an object into JSON-serializable primitives.
 
@@ -131,9 +124,8 @@ def upsert_document(
 
     Args:
       meta: must include:
-        - 'filepath' : path to the PDF to ingest
+      filepath : path to the PDF to ingest
       target_tokens / overlap_tokens: sizing for HybridChunker
-      tokenizer: HF tokenizer name; if None, inferred from OLLAMA_EMBED_MODEL (or defaults to 'gpt2')
 
     Behavior:
       - Uses Docling Hybrid chunking.
@@ -213,6 +205,11 @@ def upsert_document(
             raise  # Re-raise if it's not a uniqueness violation
 
     # Extract and persist tables from the same document
-    n_tables = persist_docling_tables(doc, file_key=file_key, source_path=source_path)
+    n_tables = persist_docling_tables(
+        doc, 
+        file_key=file_key, 
+        source_path=source_path,
+        vectorstore=vs  # Pass vectorstore for schema embeddings
+    )
     if n_tables > 0:
         print(f"[ingest] Extracted and stored {n_tables} tables")

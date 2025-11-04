@@ -1,74 +1,125 @@
-# sqope
 
-Small README with usage for the indexer CLI run helper (Windows PowerShell).
+# sqope AI
 
-## Running the indexer from PowerShell (user-friendly)
+Lightweight toolkit for indexing documents and answering text + table analytics queries.
 
-Helper scripts are provided so users can run a single-file indexing command without worrying about Docker mount paths or container internals.
+## Overview
 
-Available wrappers:
+This repository contains two main components:
 
-- `scripts/run-indexer.ps1` — PowerShell wrapper (works on Windows, PowerShell Core on macOS/Linux)
-- `scripts/run-indexer.sh` — Bash wrapper for macOS / Linux
+- **Indexer**: ingests files (PDFs, etc.), normalizes rows, and stores schema embeddings.
+- **API service**: FastAPI server that answers free-text and analytical questions by combining vector similarity, a small LLM planner, and SQL executed against JSONB rows.
 
-Usage (run from the repository root):
+## Prerequisites
 
+- **Docker & Docker Compose only** — no local Python, database, or model setup required
+- PowerShell (Windows) or bash (macOS / Linux) to run the helper scripts (optional)
 
-Mount a single PDF and index it (PowerShell):
+## Architecture
 
+This project uses a **hybrid Docker approach**:
+
+- **Docker Compose** (`docker compose up`): Orchestrates the API and database services as a continuous environment
+- **`docker run` standalone**: Allows on-demand indexing without Docker Compose
+
+This design means:
+- Start the API + DB once: `docker compose up -d db ollama api`
+- Run indexing independently as needed: `./scripts/run-indexer.ps1 -FilePath "..."`
+- Both connect to the same database over the `sqope_default` network
+
+No local installation needed — everything runs in containers.
+
+## Quick Start
+
+1. **Configure environment**: 
+   - Copy `.env.example` to `.env` at the repo root
+   - You can use the default values as-is, or customize them (e.g., database password)
+   
+   ```powershell
+   cp .env.example .env
+   # Edit .env if you want to change defaults (optional)
+   ```
+
+2. **Start all services** using Docker Compose:
+
+   ```powershell
+   docker compose up --build -d
+   ```
+
+   This will start the database, Ollama, API, and indexer in one command. The `api` service depends on `db` and `ollama` and uses healthchecks, so Compose will wait for those services to be healthy before starting the API.
+
+### Alternative Docker Compose Commands
+
+- Start only infra (DB and Ollama):
+  ```powershell
+  docker compose up -d db ollama
+  ```
+
+- Start only the API (automatically starts db and ollama):
+  ```powershell
+  docker compose up api --build -d
+  ```
+
+- Check logs:
+  ```powershell
+  docker compose logs -f api
+  ```
+
+- Stop all services:
+  ```powershell
+  docker compose down
+  ```
+
+## Indexing Documents
+
+We provide two wrapper scripts that simplify running the indexer container and mounting files. **Run these scripts from the repository root.**
+
+### Available Scripts
+
+- `scripts/run-indexer.ps1` — PowerShell wrapper (Windows, PowerShell Core on macOS/Linux)
+- `scripts/run-indexer.sh` — Bash wrapper (macOS / Linux)
+
+### Usage Examples
+
+**PowerShell:**
 ```powershell
-.\scripts\run-indexer.ps1 -FilePath "C:\full\path\to\your.pdf" -DocId your_doc_id
+.\scripts\run-indexer.ps1 -FilePath "C:\full\path\to\your.pdf"
 ```
 
-Mount a single PDF and index it (bash / macOS / Linux):
+**Bash:**
+```bash
+./scripts/run-indexer.sh -f /full/path/to/file.pdf
+```
+
+### Manual Docker Run (Advanced)
+
+If you prefer to run the indexer container manually:
 
 ```bash
-# build the image if needed
+# Build image (if needed)
 docker build -f docker/Dockerfile.indexer -t sqope-indexer .
 
-# run and mount a local file into the container
-docker run --rm --env-file .env -v "/full/path/to/your.pdf:/data/your.pdf:ro" --name sqope-indexer sqope-indexer file --path "/data/your.pdf" --doc-id your_doc_id
+# Run indexer
+docker run --rm --network sqope_default --env-file .env \
+  -v "/full/path/to/file.pdf:/data/file.pdf:ro" \
+  sqope-indexer --path /data/file.pdf
 ```
 
-If you prefer to mount the containing folder (so multiple files are available) use the wrapper's `-MountParent` / `--mount-parent` option to mount the file's parent directory, or `-MountFolder <path>` / `--mount-folder <path>` to mount any folder. For the manual container run, mount the folder instead of a single file:
+## Using the API
 
+The API exposes a `/query` endpoint (POST) that accepts JSON: `{"question": "..."}`.
+
+### Examples
+
+**Bash / macOS / Linux:**
 ```bash
-docker run --rm --env-file .env -v "/full/path/to/folder:/host_files:ro" --name sqope-indexer sqope-indexer file --path "/host_files/your.pdf" --doc-id your_doc_id
+curl -sS -X POST "http://localhost:8000/query" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What are the q4 highlights for Acme Corp?"}'
 ```
 
-If the Docker image `sqope-indexer` is not present locally, build it first (the helpers can build for you using `-Build` / `--build`):
-
-PowerShell:
+**PowerShell:**
 ```powershell
-.\scripts\run-indexer.ps1 -FilePath "C:\path\to\file.pdf" -DocId myid -Build
+$body = @{ question = "What are the q4 highlights for Acme Corp?" } | ConvertTo-Json
+Invoke-RestMethod -Uri http://localhost:8000/query -Method Post -Body $body -ContentType 'application/json'
 ```
-
-Bash / macOS / Linux:
-```bash
-./scripts/run-indexer.sh --file /full/path/to/file.pdf --id myid --build
-```
-
-Notes
-- The PowerShell helper mounts the file (or folder) into the container under `/data` (or `/host_files`) and invokes the indexer subcommand: `python -m indexer file --path <container-path> --doc-id <docid>`.
-- For non-PowerShell users on macOS/Linux use the manual `docker run` examples above. Do not hardcode host usernames or OS-specific paths in scripts—use the provided CLI or explicit host paths when running the container.
-- If you use `docker compose` to run `db` and `ollama`, the script will attempt to use the `sqope_default` network. Start those services first:
-
-```powershell
-docker compose up -d db ollama
-```
-
-- If you prefer to run the indexer container manually, here's the equivalent manual flow:
-
-```powershell
-# build the image
-docker build -f docker/Dockerfile.indexer -t sqope-indexer .
-
-# run with a single-file mount (adjust network as needed)
-docker run --rm --network sqope_default --env-file .env -v "C:\Users\Naama\Downloads\sqope_ai_home_assignment.pdf:/data/sqope_ai_home_assignment.pdf:ro" --name sqope-indexer sqope-indexer file --path "/data/sqope_ai_home_assignment.pdf" --doc-id sqope_ai_home_assignment
-```
-
-Troubleshooting
-- If Typer reports "File not found", confirm the host file was mounted into the container and you passed the container path (the helper script does this for you).
-- Inspect logs with `docker logs -f <container-name>`.
-
-Questions or custom needs? Open an issue or ping the maintainer.

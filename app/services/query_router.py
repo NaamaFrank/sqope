@@ -1,6 +1,7 @@
 from indexer.storage import get_vectorstore, init_db
 from app.services.llm import get_llm
-from app.services.tables import analyze_table
+from app.services.table_analytics import analyze_table
+from app.services.prompts import classify_prompt
 
 import re
 
@@ -49,33 +50,32 @@ def detect_type(q: str) -> str:
     print("[DEBUG] No clear rule match, using LLM fallback...")
     
     llm = get_llm()
-    prompt = """Classify this question into exactly one of these types:
-- analytical: queries about numbers, statistics, calculations, comparisons (e.g. "What was revenue in Q4?", "Show top 5 products", "Calculate growth rate")
-- hybrid: queries requesting both analysis AND explanation (e.g. "Why did revenue drop in Q4?", "Explain the sales trends", "What insights can you derive from the Q4 numbers?")
-- text: descriptive queries without numeric focus (e.g. "What is our business strategy?", "Describe our products", "Who are our competitors?")
-
-Respond with ONLY the type (analytical/hybrid/text).
-
-Question: {q}
-Type:""".format(q=q)
+    prompt = classify_prompt(q)
 
     resp = llm.invoke(prompt)
     result = resp.content.strip().lower()
     print(f"[DEBUG] LLM classification result: {result}")
     
     # Normalize response to one of our three types
+    detected_type = "text"  # Default fallback
     if "hybrid" in result:
-        return "hybrid"
+        detected_type = "hybrid"
     elif "analytical" in result:
-        return "analytical"
-    return "text"  # Default fallback
+        detected_type = "analytical"
+    
+    print(f"[QUERY TYPE DETECTED] Question type: {detected_type}")
+    return detected_type
 
-def answer_text(q: str) -> dict:
+def answer_text(q: str, analytics: str = None) -> dict:
     vs = get_vectorstore()
-    docs = vs.similarity_search(q, k=4)
+    flt = {"type": "hybrid"}
+    docs = vs.similarity_search(q, k=4, filter=flt)
     llm = get_llm()
     context = "\n\n".join(d.page_content for d in docs)
-    prompt = f"Use the context to answer:\n\nContext:\n{context}\n\nQuestion: {q}"
+    prompt = f"Use the context to answer:\n\n"
+    if analytics:
+            prompt += f"Analytical insight:\n{analytics}\n\n"
+    prompt += f"Context:\n{context}\n\nQuestion: {q}"
     resp = llm.invoke(prompt)
     return {"type": "text", "answer": resp.content}
 
@@ -87,8 +87,7 @@ def answer_query(q: str) -> dict:
     if t == "analytical":
         a = analyze_table(q)
         return a
-    # hybrid: run both, then fuse
-    text_part = answer_text(q)
+    # hybrid: run both
     table_part = analyze_table(q)
-    fused = f"{text_part['answer']}\n\nAnalytical insight: {table_part['answer']}"
-    return {"type": "hybrid", "answer": fused, "text": text_part, "analytical": table_part}
+    text_part = answer_text(q, table_part['answer'])
+    return {"type": "hybrid", "answer": text_part['answer']}
