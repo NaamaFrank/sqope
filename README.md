@@ -7,13 +7,13 @@ Lightweight toolkit for indexing documents and answering text + table analytics 
 
 This repository contains two main components:
 
-- **Indexer**: ingests files (PDFs, etc.), normalizes rows, and stores schema embeddings.
+- **Indexer**: ingests PDF files, normalizes rows, and stores schema embeddings.
 - **API service**: FastAPI server that answers free-text and analytical questions by combining vector similarity, a small LLM planner, and SQL executed against JSONB rows.
 
 ## Prerequisites
 
 - **Docker & Docker Compose only** — no local Python, database, or model setup required
-- PowerShell (Windows) or bash (macOS / Linux) to run the helper scripts (optional)
+- PowerShell (Windows) or bash (macOS / Linux) to run the helper scripts
 
 ## Architecture
 
@@ -47,28 +47,6 @@ No local installation needed — everything runs in containers.
    ```
 
    This will start the database, Ollama, API, and indexer in one command. The `api` service depends on `db` and `ollama` and uses healthchecks, so Compose will wait for those services to be healthy before starting the API.
-
-### Alternative Docker Compose Commands
-
-- Start only infra (DB and Ollama):
-  ```powershell
-  docker compose up -d db ollama
-  ```
-
-- Start only the API (automatically starts db and ollama):
-  ```powershell
-  docker compose up api --build -d
-  ```
-
-- Check logs:
-  ```powershell
-  docker compose logs -f api
-  ```
-
-- Stop all services:
-  ```powershell
-  docker compose down
-  ```
 
 ## Indexing Documents
 
