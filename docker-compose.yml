@@ -17,7 +17,11 @@ services:
       retries: 20
 
   ollama:
-    image: ollama/ollama:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ollama
+      args:
+        OLLAMA_LLM_MODEL: ${OLLAMA_LLM_MODEL:-qwen2.5:3b-instruct-q4_0}
     ports: ["11434:11434"]
     volumes:
       - ollama:/root/.ollama
@@ -40,19 +44,6 @@ services:
     ports: ["8000:8000"]
     volumes:
       - ./app:/app/app
-
-  indexer:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.indexer
-    env_file: [.env]
-    depends_on:
-      db:
-        condition: service_healthy
-    working_dir: /indexer
-    entrypoint: ["python", "-m", "indexer"]
-    volumes:
-      - ./data:/indexer/data  # Mount the data directory
 
 volumes:
   ollama:

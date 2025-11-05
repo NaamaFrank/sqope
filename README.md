@@ -46,7 +46,12 @@ No local installation needed — everything runs in containers.
    docker compose up --build -d
    ```
 
-   This will start the database, Ollama, API, and indexer in one command. The `api` service depends on `db` and `ollama` and uses healthchecks, so Compose will wait for those services to be healthy before starting the API.
+   On **first run**, this will:
+   - Build the custom Ollama image with the LLM model pre-pulled (~5-10 minutes for model download)
+   - Start the database, Ollama, and API services
+   - Wait for all services to be healthy before completing
+
+   Subsequent runs will be much faster (model is already cached).
 
 ## Indexing Documents
 

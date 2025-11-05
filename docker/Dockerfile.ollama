@@ -1,0 +1,5 @@
+FROM ollama/ollama:latest
+
+# Pre-pull the model during build
+ARG OLLAMA_LLM_MODEL=qwen2.5:3b-instruct-q4_0
+RUN ollama serve & sleep 10 && ollama pull ${OLLAMA_LLM_MODEL} && pkill -f "ollama serve"
